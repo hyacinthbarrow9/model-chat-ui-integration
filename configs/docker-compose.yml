@@ -1,0 +1,17 @@
+# Choose a reviewed Open WebUI tag or digest before starting.
+# Example: OPEN_WEBUI_IMAGE=ghcr.io/open-webui/open-webui:<reviewed-tag>
+services:
+  open-webui:
+    image: ${OPEN_WEBUI_IMAGE:?set OPEN_WEBUI_IMAGE to a reviewed tag or digest}
+    ports:
+      - "3000:8080"
+    volumes:
+      - open-webui-data:/app/backend/data
+    environment:
+      ENABLE_OPENAI_API: "true"
+      OPENAI_API_BASE_URL: ${OPENAI_API_BASE_URL:-https://argolink.io/v1}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:?set a secret outside this file}
+      ENABLE_SIGNUP: ${ENABLE_SIGNUP:-false}
+    restart: unless-stopped
+volumes:
+  open-webui-data:

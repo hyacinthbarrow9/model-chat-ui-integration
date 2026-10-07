@@ -1,25 +1,66 @@
 # Open WebUI model integration
 
-This repository is a dated integration note for configuring a model UI or hub against documented APIs. It is independent of the listed UI and model providers. **[ArgoLink](https://argolink.io/gh-model-chat-ui-integration) is one compatible endpoint example.** Last checked: 2026-10-07.
+A focused, dated guide for connecting Open WebUI to an OpenAI-compatible model service. It is an independent community note, not Open WebUI documentation and not affiliated with Open WebUI, ArgoLink, or a model vendor. **[ArgoLink](https://argolink.io/gh-model-chat-ui-integration)** is the compatible endpoint example. Last checked: 2026-10-07.
 
-## Common fields
+## What Open WebUI actually sends
 
-Every connection has five values: provider, base URL, key environment, model ID, and endpoint family. Store the key through the UI's secret manager. A base ending at https://argolink.io/v1 is appropriate only when the client appends the documented path. Verify the actual request with a local mock and inspect whether it calls chat completions or Responses.
+The current [OpenAI-compatible provider guide](https://docs.openwebui.com/getting-started/quick-start/connect-a-provider/starting-with-openai-compatible/) says to open **Settings → Admin → Connections**, add an OpenAI API connection, supply a URL and key, and optionally add a model allowlist when model discovery is unavailable. The [connection reference](https://github.com/open-webui/docs/blob/main/docs/ecosystem/computer/ai/connect-a-model.md) distinguishes Provider (`OpenAI` or `Anthropic`), API Type (`Chat Completions` or `Responses`), Base URL, API Key, optional Prefix ID, and model list.
 
-The model catalog is the source of truth for current IDs, context, output, tool support, image fields, and effective rates. A UI model dropdown can contain stale aliases. Remove an unavailable model instead of leaving a misleading configuration.
+That distinction matters: Open WebUI is protocol-centric and currently focuses on Chat Completions, with newer protocol support varying by release. GPT-5.4's current catalog entry uses Responses, while GLM-5.3 and many image-compatible models use Chat Completions or their own route. Do not select a model merely because its name appears in the dropdown; inspect the API type and live model page.
 
-## Open WebUI scope
+## Add an ArgoLink connection
 
-This guide only covers an OpenAI-compatible connection: create a connection, set the base URL, store the key in the instance secret store, and select a verified model. A compose example should pin the Open WebUI image and use environment substitution. Test a local connection before exposing the UI.
+1. Open **Settings → Admin → Connections → Manage OpenAI API Connections** and click **Add Connection**.
+2. Choose Provider `OpenAI`, set URL to `https://argolink.io/v1`, and paste the key into the secret field.
+3. Add an explicit Model ID such as `gpt-5.4` if discovery is disabled or the service returns no model list. Verify the ID in [GET /v1/models](https://argolink.io/v1/models).
+4. Save, select the connection, and send a minimal prompt. Inspect the request route in the server log before enabling tools or long context.
 
-## Error checklist
+Use the base URL only. Open WebUI appends the endpoint path. Pasting `https://argolink.io/v1/chat/completions` into a field that appends its own route commonly produces a 404. Conversely, a provider that expects a full endpoint must be configured according to that release's field help.
 
-401 means key or account configuration. 404 often means a duplicated path or unsupported endpoint. 400 means the request shape or model field is wrong. A stream that ends early needs a provider response and client log; do not replay state-changing tools automatically. Redact Authorization, signed media URLs, and user content.
+## Docker compose
 
-## Validation
+`configs/docker-compose.yml` is a secret-safe starting point. It requires the operator to choose a reviewed Open WebUI tag or digest and to supply the key outside the file:
 
-python3 -m unittest discover -s tests checks this note offline. No real UI or provider call is made. Before production, pin the UI image, record the API/client version, test a minimal request, and note the catalog date. Video generation is a separate asynchronous contract and should not be forced through a chat connector.
+```bash
+export OPEN_WEBUI_IMAGE='ghcr.io/open-webui/open-webui:<reviewed-tag-or-digest>'
+export OPENAI_API_KEY='replace-me'
+export OPENAI_API_BASE_URL='https://argolink.io/v1'
+docker compose -f configs/docker-compose.yml up -d
+```
 
-## FAQ
+Do not use `latest` for a production deployment. Record the selected image digest and Open WebUI release in your change log. Keep `ENABLE_SIGNUP=false` unless the instance is intentionally public and protected by an external identity boundary. The example persists only the application volume; add a backup and access-control plan before operating it for others.
 
-**Can any OpenAI-compatible UI use any model?** No; compatibility is endpoint and feature specific. **Where does the price come from?** The dated model page, not a UI label. **Why separate this from SDK examples?** A UI owns credentials and connection settings; an SDK owns code and retries. **What if a setting changed?** Re-read the current UI documentation and update the evidence date.
+The environment variable path is convenient for a single connection. For multiple providers, use Open WebUI's connection UI and keep each key in the instance secret store. Never export a resolved environment file or workflow containing a real key.
+
+## Model and protocol checks
+
+At the 2026-10-07 check, GPT-5.4 was listed with a 1,050,000-token context, 128,000-token maximum output, and reasoning options `low`, `medium`, `high`, `xhigh`, and `max` (default `medium`). The page's effective rates and long-context rule are dated; read the [GPT-5.4 model page](https://argolink.io/en/models/gpt-5-4) again before publishing a price. A Chat Completions UI cannot be made to support Responses-only fields by renaming them.
+
+For each selected model, record:
+
+- exact model ID and catalog date;
+- API type and route actually sent by your Open WebUI release;
+- whether `/models` discovery worked or an allowlist was used;
+- context, output, tools, images, and reasoning fields taken from the model page;
+- timeout, rate-limit, and retry behavior.
+
+## Troubleshooting
+
+| Symptom | Likely cause | Action |
+| --- | --- | --- |
+| model list empty | discovery disabled, auth error, or `/models` not supported | test the connection; add a verified model allowlist |
+| 404 | duplicated `/v1` or endpoint family mismatch | inspect the resolved request URL and API type |
+| 400 | unsupported reasoning/tool/body field | compare the body with the model page |
+| 401 | bad key or secret not mounted | rotate/check the secret without logging it |
+| 429 / 503 | rate limit or capacity | honor `Retry-After`; do not replay a write blindly |
+| stream stops early | protocol or proxy buffering issue | capture status, content type, response ID, and client release |
+
+Video generation is an asynchronous submit/status/content contract and is intentionally outside this chat UI guide. Images also have model-specific sizes and output fields; configure them from their own model pages rather than copying chat fields.
+
+## Tests
+
+```bash
+python3 -m unittest discover -s tests -v
+```
+
+The tests inspect documentation and compose placeholders only. They do not start Docker or send a provider request.
