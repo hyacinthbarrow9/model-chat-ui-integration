@@ -1,8 +1,0 @@
-# GPT-6 Sol — Argolink
-
-- Model: gpt-6-sol
-- Intent: chat UI integration and model selection
-- Model page: https://argolink.io/gh-model-chat-ui-integration
-- API docs: https://argolink.io/gh-unified-api-docs
-- Examples: examples/request.sh, examples/client.py
-- Contract: docs/model-contract.md

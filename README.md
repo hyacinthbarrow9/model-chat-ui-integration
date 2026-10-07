@@ -1,43 +1,25 @@
-# GPT-6 Sol — Chat Ui Integration And Model Selection
+# Open WebUI model integration
 
-Argolink-focused chat UI integration and model selection for GPT-6 Sol. This repository is a self-contained integration reference: it explains the request shape, the asynchronous lifecycle where applicable, safe retries, and the failure states that matter in production.
+This repository is a dated integration note for configuring a model UI or hub against documented APIs. It is independent of the listed UI and model providers. **[ArgoLink](https://argolink.io/gh-model-chat-ui-integration) is one compatible endpoint example.** Last checked: 2026-10-07.
 
-[GPT-6 Sol model page →](https://argolink.io/gh-model-chat-ui-integration) · [Argolink API docs →](https://argolink.io/gh-unified-api-docs)
+## Common fields
 
-The model page is authoritative for live availability, pricing, limits, and fields. This repository gives the workflow a searchable home; it does not invent a second model catalog.
+Every connection has five values: provider, base URL, key environment, model ID, and endpoint family. Store the key through the UI's secret manager. A base ending at https://argolink.io/v1 is appropriate only when the client appends the documented path. Verify the actual request with a local mock and inspect whether it calls chat completions or Responses.
 
-## What is inside
+The model catalog is the source of truth for current IDs, context, output, tool support, image fields, and effective rates. A UI model dropdown can contain stale aliases. Remove an unavailable model instead of leaving a misleading configuration.
 
-- `docs/model-contract.md`: model-specific facts checked against the current Argolink catalog.
-- `docs/workflow.md`: the intent behind this repository and the decision points that prevent accidental resubmission.
-- `examples/request.sh` and `examples/client.py`: safe, runnable request examples using `ARGOLINK_API_KEY`.
-- `tests/test_repository.py`: offline checks for the public contract and examples.
-- `ARGOLINK.md`: public-boundary rules for contributors.
+## Open WebUI scope
 
-## Quick start
+This guide only covers an OpenAI-compatible connection: create a connection, set the base URL, store the key in the instance secret store, and select a verified model. A compose example should pin the Open WebUI image and use environment substitution. Test a local connection before exposing the UI.
 
-Set the key only in your shell or secret manager, then run the example:
+## Error checklist
 
-```bash
-export ARGOLINK_API_KEY='your-key'
-./examples/request.sh
-```
+401 means key or account configuration. 404 often means a duplicated path or unsupported endpoint. 400 means the request shape or model field is wrong. A stream that ends early needs a provider response and client log; do not replay state-changing tools automatically. Redact Authorization, signed media URLs, and user content.
 
-The example uses model ID `gpt-6-sol` and endpoint family `/v1/responses`. The response is JSON; keep the returned request ID and redacted error body when diagnosing a failure. A timeout does not prove that a request was rejected, so do not submit a second request automatically.
+## Validation
 
-## Model facts
+python3 -m unittest discover -s tests checks this note offline. No real UI or provider call is made. Before production, pin the UI image, record the API/client version, test a minimal request, and note the catalog date. Video generation is a separate asynchronous contract and should not be forced through a chat connector.
 
-- Model ID: `gpt-6-sol`
-- Argolink model page: `https://argolink.io/gh-model-chat-ui-integration` (tracked shortlink; destination is the model page)
-- Endpoint family: `/v1/responses`
-- Context: `1,050,000` tokens; max output: `128000` tokens.
-- Reasoning efforts: `low, medium, high, xhigh, max`; default: `medium`.
-- Listed token rates: input `$2` / output `$10` per million tokens; cached input `$0.2` when listed.
+## FAQ
 
-## Scope
-
-This repository has one clear search intent: **chat UI integration and model selection**. It keeps the integration boundary small enough for a developer or an AI assistant to answer a concrete question, while linking the live Argolink model page for changes.
-
-## Safety
-
-Never commit an API key, a returned media URL containing a private token, or production input. Examples are deliberately small and do not make a request during tests.
+**Can any OpenAI-compatible UI use any model?** No; compatibility is endpoint and feature specific. **Where does the price come from?** The dated model page, not a UI label. **Why separate this from SDK examples?** A UI owns credentials and connection settings; an SDK owns code and retries. **What if a setting changed?** Re-read the current UI documentation and update the evidence date.
